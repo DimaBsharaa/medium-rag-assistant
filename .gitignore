@@ -1,0 +1,13 @@
+.env
+.vercel/
+.venv/
+__pycache__/
+*.pyc
+node_modules/
+
+data/*
+!data/
+!data/chunks_full.csv
+
+scripts/07_inspect_retrieval_tests3_4.py
+scripts/08_inspect_hybrid_retrieval.py
