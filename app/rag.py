@@ -31,6 +31,11 @@ MULTI_RESULT_PATTERNS = (
     r"\bthree\s+articles\b",
     r"\bmultiple\s+(?:articles|results|titles)\b",
 )
+TITLE_ONLY_PATTERNS = (
+    r"\breturn\s+only\s+the\s+titles\b",
+    r"\bonly\s+the\s+titles\b",
+    r"\breturn\s+only\s+titles\b",
+)
 CONTENT_FILTER_MARKERS = (
     "ContentPolicyViolation",
     "ResponsibleAIPolicyViolation",
@@ -107,7 +112,8 @@ STOPWORDS = {
 
 FALLBACK_RESPONSE = "I don't know based on the provided Medium articles data."
 SYSTEM_PROMPT = """You are a Medium-article assistant that answers questions strictly and only based on the Medium articles dataset context provided to you (metadata and article passages). You must not use any external knowledge, the open internet, or information that is not explicitly contained in the retrieved context. If the answer cannot be determined from the provided context, respond: "I don't know based on the provided Medium articles data."
-Always explain your answer using the given context, quoting or paraphrasing the relevant article passage or metadata when helpful."""
+Always explain your answer using the given context, quoting or paraphrasing the relevant article passage or metadata when helpful.
+Follow the user's requested output format exactly. If the user asks for only titles, return only titles with no explanations."""
 
 
 load_dotenv()
@@ -486,6 +492,11 @@ def is_multi_result_question(question):
     )
 
 
+def asks_for_titles_only(question):
+    question_lower = question.lower()
+    return any(re.search(pattern, question_lower) for pattern in TITLE_ONLY_PATTERNS)
+
+
 def dedupe_matches(matches):
     seen = set()
     deduped = []
@@ -556,13 +567,21 @@ def build_context_string(matches):
 
 
 def build_user_prompt(question, context):
-    return f"""User question:
+    prompt = f"""User question:
 {normalize_display_text(question)}
 
 Retrieved Medium article context:
 {context}
 
 Answer the user question using only the retrieved context above."""
+
+    if asks_for_titles_only(question):
+        prompt += (
+            "\nReturn only the article titles, one per line. Do not add "
+            "explanations, bullets, numbering, quotes, or extra text."
+        )
+
+    return prompt
 
 
 def build_context_response(matches):
