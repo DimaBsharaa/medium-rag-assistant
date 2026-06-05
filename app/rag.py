@@ -105,7 +105,8 @@ STOPWORDS = {
     "your",
 }
 
-SYSTEM_PROMPT = """You are a Medium-article assistant that answers questions strictly and only based on the Medium articles dataset context provided to you (metadata and article passages). You must not use any external knowledge, the open internet, or information that is not explicitly contained in the retrieved context. If the answer cannot be determined from the provided context, respond: “I don’t know based on the provided Medium articles data.”
+FALLBACK_RESPONSE = "I don't know based on the provided Medium articles data."
+SYSTEM_PROMPT = """You are a Medium-article assistant that answers questions strictly and only based on the Medium articles dataset context provided to you (metadata and article passages). You must not use any external knowledge, the open internet, or information that is not explicitly contained in the retrieved context. If the answer cannot be determined from the provided context, respond: "I don't know based on the provided Medium articles data."
 Always explain your answer using the given context, quoting or paraphrasing the relevant article passage or metadata when helpful."""
 
 
@@ -185,6 +186,37 @@ def normalize_text(value):
         return ""
 
     return str(value).lower()
+
+
+def normalize_display_text(value):
+    if pd.isna(value):
+        return ""
+
+    text = str(value)
+    replacements = {
+        "\u2018": "'",
+        "\u2019": "'",
+        "\u201c": '"',
+        "\u201d": '"',
+        "\u2013": "-",
+        "\u2014": "-",
+        "\u2026": "...",
+        "\u00a0": " ",
+        "â€˜": "'",
+        "â€™": "'",
+        "â€œ": '"',
+        "â€": '"',
+        "â€“": "-",
+        "â€”": "-",
+        "â€¦": "...",
+        "Ã¢": "",
+        "Â": "",
+    }
+
+    for old, new in replacements.items():
+        text = text.replace(old, new)
+
+    return text
 
 
 def tokenize(text):
@@ -511,11 +543,11 @@ def build_context_string(matches):
                 [
                     f"[Context {rank}]",
                     f"score: {match.score}",
-                    f"article_id: {metadata.get('article_id')}",
-                    f"title: {metadata.get('title')}",
-                    f"authors: {metadata.get('authors')}",
-                    f"chunk_index: {metadata.get('chunk_index')}",
-                    f"chunk_text: {metadata.get('chunk_text')}",
+                    f"article_id: {normalize_display_text(metadata.get('article_id'))}",
+                    f"title: {normalize_display_text(metadata.get('title'))}",
+                    f"authors: {normalize_display_text(metadata.get('authors'))}",
+                    f"chunk_index: {normalize_display_text(metadata.get('chunk_index'))}",
+                    f"chunk_text: {normalize_display_text(metadata.get('chunk_text'))}",
                 ]
             )
         )
@@ -525,7 +557,7 @@ def build_context_string(matches):
 
 def build_user_prompt(question, context):
     return f"""User question:
-{question}
+{normalize_display_text(question)}
 
 Retrieved Medium article context:
 {context}
@@ -541,8 +573,8 @@ def build_context_response(matches):
         context.append(
             {
                 "article_id": str(metadata.get("article_id")),
-                "title": metadata.get("title"),
-                "chunk": metadata.get("chunk_text"),
+                "title": normalize_display_text(metadata.get("title")),
+                "chunk": normalize_display_text(metadata.get("chunk_text")),
                 "score": float(match.score),
             }
         )
@@ -603,7 +635,7 @@ def get_response_text(response):
 
 def build_assignment_response(response_text, context_matches, user_prompt):
     return {
-        "response": response_text,
+        "response": normalize_display_text(response_text),
         "context": build_context_response(context_matches),
         "Augmented_prompt": {
             "System": SYSTEM_PROMPT,
@@ -641,9 +673,7 @@ def answer_question(question):
             if retry_response_text.strip():
                 response_text = retry_response_text
             else:
-                response_text = (
-                    "I don’t know based on the provided Medium articles data."
-                )
+                response_text = FALLBACK_RESPONSE
     except Exception as error:
         if is_content_filter_error(error):
             retry_matches = context_matches[:CONTENT_FILTER_RETRY_CHUNKS]
@@ -655,9 +685,7 @@ def answer_question(question):
                 retry_response_text = get_response_text(retry_response)
 
                 if not retry_response_text.strip():
-                    retry_response_text = (
-                        "I don’t know based on the provided Medium articles data."
-                    )
+                    retry_response_text = FALLBACK_RESPONSE
 
                 return build_assignment_response(
                     retry_response_text,
@@ -667,7 +695,7 @@ def answer_question(question):
             except Exception as retry_error:
                 if is_content_filter_error(retry_error):
                     return build_assignment_response(
-                        "I don’t know based on the provided Medium articles data.",
+                        FALLBACK_RESPONSE,
                         retry_matches,
                         retry_user_prompt,
                     )
