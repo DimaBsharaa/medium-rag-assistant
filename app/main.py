@@ -6,6 +6,17 @@ from app.rag import RagPipelineError, answer_question, stats
 app = FastAPI(title="Medium Article RAG Assistant")
 
 
+@app.get("/")
+def root():
+    return {
+        "message": "Medium RAG Assistant is running.",
+        "endpoints": {
+            "stats": "/api/stats",
+            "prompt": "/api/prompt",
+        },
+    }
+
+
 class PromptRequest(BaseModel):
     question: str
 
