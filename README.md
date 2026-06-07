@@ -159,6 +159,8 @@ The chunking script implements the 512-token target approximately as:
 
 That keeps chunks large enough to preserve article meaning, but small enough to retrieve and pass into the model cleanly.
 
+Note: `top_k = 7` is the Pinecone retrieval depth; the hybrid selector then keeps only the strongest 5 chunks (3 distinct articles for list questions) for the model context.
+
 ## Project Structure
 
 ```text
